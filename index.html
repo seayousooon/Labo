@@ -3,59 +3,43 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="Labo : un bac à sable pour imaginer, créer et expérimenter.">
-<title>Labo — Bac à sable</title>
+<meta name="description" content="Labo : les exercices et les outils de ma formation au vibe coding.">
+<title>Les exercices du cours — Labo</title>
 <style>
-:root{color-scheme:light;font-family:system-ui,sans-serif;color:#293f37;background:#faf6ec}*{box-sizing:border-box}body{margin:0}header,main,footer{max-width:1000px;margin:auto;padding:24px}header{font-size:24px;font-weight:800}main{padding-top:60px;padding-bottom:70px}.tag{color:#386b56;font-weight:700;letter-spacing:.12em;text-transform:uppercase;font-size:13px}h1{font-size:clamp(42px,8vw,80px);line-height:1.06;letter-spacing:-.05em;max-width:800px;margin:20px 0}.intro{font-size:21px;max-width:620px;line-height:1.7}.button{display:inline-block;color:white;background:#27634d;padding:14px 24px;border-radius:30px;text-decoration:none;font-weight:700;margin:15px 0 40px}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}.card{background:white;border:1px solid #dce4d6;border-radius:20px;padding:24px}.card h2{font-size:23px;margin-top:0}.card p{line-height:1.7;margin-bottom:0}footer{border-top:1px solid #d5ddce;font-size:14px}a:focus-visible{outline:3px solid #bb6511;outline-offset:5px}section{scroll-margin-top:25px}@media(max-width:650px){main{padding-top:30px}.grid{grid-template-columns:1fr}}
-
-/* Fond pastel : halos colorés et trame discrète. */
-html{min-height:100%;background:#faf6ec}
-body{
-  min-height:100vh;
-  background:
-    radial-gradient(ellipse at 8% 8%,rgba(183,211,164,.48),transparent 48%),
-    radial-gradient(ellipse at 96% 25%,rgba(255,200,162,.44),transparent 45%),
-    radial-gradient(ellipse at 65% 96%,rgba(159,226,212,.40),transparent 52%),
-    radial-gradient(circle,rgba(65,97,72,.10) .8px,transparent 1px),
-    linear-gradient(135deg,#faf6ec,#fff9f2 55%,#f0faf8);
-  background-size:auto,auto,auto,24px 24px,auto;
-}
-.card{
-  background:rgba(255,255,255,.86);
-  border-color:rgba(255,255,255,.95);
-  box-shadow:0 12px 35px rgba(53,79,52,.07);
-}
-
-/* Couleurs des textes assorties au fond pastel. */
-:root{color:#35483e}
-header,h1{color:#245440}
-header span{color:#a34d23}
-.tag{color:#386b56}
-h1 + .intro{color:#a34d23;font-weight:650}
-.card:nth-child(1) h2{color:#386b56}
-.card:nth-child(2) h2{color:#a34d23}
-.card:nth-child(3) h2{color:#176b60}
-footer{color:#52644f}
+:root{color-scheme:light;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#293f37;background:#faf6ec;line-height:1.65}
+*{box-sizing:border-box}body{margin:0}header,main,footer{max-width:1000px;margin:auto;padding:24px}
+header{display:flex;align-items:center;justify-content:space-between;gap:24px;flex-wrap:wrap;border-bottom:1px solid #ccd5c9}
+.brand{font-size:24px;font-weight:800}a{color:#245440;text-underline-offset:4px}
+header a,.tool-link{display:inline-flex;align-items:center;min-height:44px;font-weight:700}
+main{padding-top:48px;padding-bottom:64px}h1,h2,h3{color:#245440;line-height:1.2}
+h1{font-size:clamp(32px,6vw,52px);margin:0 0 24px}h2{font-size:24px}h3{font-size:22px;margin-top:0}
+.intro{font-size:20px;max-width:680px}.greeting,.category{color:#914321;font-weight:650}
+.grid,.tools{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px}
+.card{min-width:0;background:#fff;border:1px solid #ccd5c9;border-radius:12px;padding:24px}
+.card p{margin-bottom:16px}.tools .card{display:flex;flex-direction:column;align-items:flex-start}
+.tools .card p:not(.category){flex:1}.category{font-size:14px;margin:0 0 12px}
+.button{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:12px 20px;border-radius:8px;background:#245440;color:#fff;font-weight:700;text-decoration:none}
+.button:hover{background:#183e2f}a:hover{text-decoration:underline}
+a:focus-visible{outline:3px solid #914321;outline-offset:4px}
+.skip{position:absolute;left:16px;top:-100px;background:white;padding:12px;z-index:10}.skip:focus{top:12px}
+section+section{margin-top:40px}footer{border-top:1px solid #ccd5c9;font-size:14px}
+@media(max-width:650px){.grid,.tools{grid-template-columns:1fr}header,main,footer{padding:20px}main{padding-top:32px}}
 </style>
 </head>
 <body>
-<header>Labo<span aria-hidden="true"> ✦</span></header>
-<main>
-<p class="tag">Bac à sable</p>
-<h1>Un espace pour essayer et créer.</h1>
-<p class="intro">bonjour les scapiens et scapiennes</p>
-<p class="intro">Bienvenue dans Labo. Ici, les idées prennent forme : on explore, on expérimente et on fait évoluer ses projets, un essai à la fois.</p>
-<a class="button" href="#explorer">Explorer le laboratoire ↓</a>
-<section aria-labelledby="pages-cours" style="margin-bottom:40px">
+<a class="skip" href="#contenu">Aller au contenu</a>
+<header><a class="brand" href="./index.html" aria-current="page">Labo</a><nav aria-label="Navigation principale"><a href="./index.html" aria-current="page">Accueil</a></nav></header>
+<main id="contenu">
+<h1>Les exercices du cours</h1>
+<p class="greeting">bonjour les scapiens et scapiennes</p>
+<p class="intro">Mon espace d’apprentissage et d’expérimentation du vibe coding.</p>
+<section aria-labelledby="pages-cours">
 <h2 id="pages-cours">Les pages du cours</h2>
-<article class="card"><h3>Outils du vibe coding</h3><p>Retrouvez les outils pour concevoir, développer et publier vos exercices.</p><a class="button" href="./outils.html" style="margin-bottom:0">Consulter les outils →</a></article>
-</section>
-<section id="explorer" class="grid" aria-label="Les possibilités du laboratoire">
-<article class="card"><h2>Imaginer</h2><p>Poser une idée, dessiner une piste et ouvrir de nouvelles possibilités.</p></article>
-<article class="card"><h2>Expérimenter</h2><p>Tester une première version et apprendre en faisant.</p></article>
-<article class="card"><h2>Faire évoluer</h2><p>Améliorer progressivement les essais pour donner vie aux projets.</p></article>
+<div class="grid">
+<article class="card"><h3>Outils du vibe coding</h3><p>Les outils pour concevoir, développer et publier les exercices du cours.</p><a class="button" href="./outils.html">Découvrir les outils</a></article>
+</div>
 </section>
 </main>
-<footer>Labo — Un terrain de jeu pour les idées.</footer>
+<footer>Labo — Projet de formation</footer>
 </body>
 </html>
