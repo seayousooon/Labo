@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Contact — Labo, bac à sable de formation.">
+<title>Contact — Labo</title>
+<link rel="stylesheet" href="./site.css">
+<style>:root{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#263e3c;background:#fffdf4;line-height:1.6}*{box-sizing:border-box}body{margin:0;min-height:100vh;background:linear-gradient(125deg,#fff4bd,#fffdf4 45%,#d9f7ed)}.page-header{max-width:900px;margin:auto;padding:24px;border-bottom:1px solid #9dcfc3}.page-header a{color:#006b63;min-height:44px;display:inline-flex;align-items:center;font-weight:700}.skip{position:absolute;left:12px;top:-100px;background:#fff;padding:12px}.skip:focus{top:12px}a:focus-visible{outline:3px solid #ad3c26;outline-offset:3px}</style>
+</head>
+<body>
+<a class="skip" href="#contenu">Aller au contenu</a>
+<header class="page-header"><a href="./index.html">← Labo — Accueil</a></header>
+<main class="utility-page" id="contenu"><h1>Contact</h1><p>Voici un formulaire fictif pour expérimenter une interface de contact.</p>
+<div class="notice"><strong>Démonstration uniquement :</strong> aucun message n’est envoyé, enregistré ou transmis. Ne saisissez pas de données personnelles réelles.</div>
+<form id="contact-demo">
+<div><label for="nom">Nom fictif</label><input id="nom" name="nom" autocomplete="off" required></div>
+<div><label for="email">Adresse e-mail fictive</label><input id="email" name="email" type="email" autocomplete="off" required></div>
+<div><label for="message">Message fictif</label><textarea id="message" name="message" rows="5" required></textarea></div>
+<button type="submit">Simuler l’envoi</button>
+<p id="form-result" role="status" aria-live="polite"></p>
+</form></main>
+<footer class="site-footer"><nav aria-label="Pied de page"><a href="./contact.html">Contact</a><a href="./aide.html">Aide</a><a href="./info-site.html">Info site</a><a href="./accessibilite.html">Accessibilité : non conforme</a><a href="./index.html">Site de Labo</a><a href="./donnees-personnelles.html">Cookies / Données personnelles</a><a href="./mentions-legales.html">Mentions légales</a></nav></footer>
+<script>document.getElementById('contact-demo').addEventListener('submit',function(event){event.preventDefault();document.getElementById('form-result').textContent='Simulation réussie : aucune donnée n’a été envoyée ni enregistrée.';this.reset();});</script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+/* Style local partagé : aucune ressource tierce chargée. */
+.site-footer{max-width:1400px;margin:0 auto;padding:24px;border-top:1px solid #9dcfc3;font-size:15px}
+.site-footer nav{display:flex;gap:12px 22px;align-items:center;flex-wrap:wrap}
+.site-footer a{color:#006b63;min-height:44px;display:inline-flex;align-items:center;text-underline-offset:4px}
+.site-footer a:focus-visible{outline:3px solid #ad3c26;outline-offset:4px}
+.utility-page{max-width:900px;margin:0 auto;padding:26px 24px 64px;min-height:55vh}
+.utility-page h1{color:#006b63;font-size:clamp(30px,5vw,44px)}
+.utility-page h2{color:#006b63;font-size:22px}
+.utility-page a{color:#006b63}
+.utility-page .notice{border-left:4px solid #ad3c26;padding:12px 16px;background:#fff;margin:20px 0}
+.utility-page form{display:grid;gap:14px;max-width:620px}
+.utility-page label{display:block;font-weight:700}
+.utility-page input,.utility-page textarea{width:100%;font:inherit;padding:10px;border:1px solid #557d75;border-radius:6px;background:#fff}
+.utility-page button{font:inherit;min-height:44px;padding:10px 18px;background:#006b63;color:white;border:0;border-radius:8px;cursor:pointer}
+.utility-page button:focus-visible,.utility-page input:focus-visible,.utility-page textarea:focus-visible{outline:3px solid #ad3c26;outline-offset:3px}
+@media(max-width:650px){.site-footer,.utility-page{padding-left:16px;padding-right:16px}}
