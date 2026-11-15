@@ -1,4 +1,4 @@
-import page from "./outils.html";
+import page from "../outils.html";
 import seed from "./outils-init.json";
 
 const catalogue = new Map(seed.map(tool => [tool.outilId, tool]));
