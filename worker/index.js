@@ -119,16 +119,126 @@ async function verifyTurnstile(token, env, hostname) {
   return null;
 }
 
+
+const productionOrigin = "https://labo-outils.allonsalaplage.workers.dev";
+const callbackUrl = productionOrigin + "/auth/github/callback";
+const stateCookie = "__Host-labo-oauth";
+const sessionCookie = "__Host-labo-session";
+const encoder = new TextEncoder();
+
+const base64url = bytes => btoa(String.fromCharCode(...new Uint8Array(bytes)))
+  .replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "");
+
+function cookie(name, value, maxAge) {
+  return name + "=" + value + "; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age=" + maxAge;
+}
+
+function readCookie(request, name) {
+  const prefix = name + "=";
+  return request.headers.get("Cookie")?.split(/;\s*/).find(part => part.startsWith(prefix))?.slice(prefix.length);
+}
+
+function redirect(location, ...cookies) {
+  const headers = new Headers({ Location: location, "Cache-Control": "no-store", "Referrer-Policy": "no-referrer" });
+  for (const value of cookies) headers.append("Set-Cookie", value);
+  return new Response(null, { status: 303, headers });
+}
+
+function signingKey(secret) {
+  return crypto.subtle.importKey("raw", encoder.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign", "verify"]);
+}
+
+async function hasGitHubSession(request, env) {
+  if (!env.GITHUB_CLIENT_ID || !env.GITHUB_CLIENT_SECRET || new URL(request.url).origin !== productionOrigin) return false;
+  const parts = /^(\d{10}\.[A-Za-z0-9_-]{22})\.([A-Za-z0-9_-]{43})$/.exec(readCookie(request, sessionCookie) || "");
+  if (!parts || Number(parts[1].split(".")[0]) <= Date.now() / 1000) return false;
+  const signature = Uint8Array.from(atob(parts[2].replaceAll("-", "+").replaceAll("_", "/") + "="), char => char.charCodeAt(0));
+  return crypto.subtle.verify("HMAC", await signingKey(env.GITHUB_CLIENT_SECRET), signature,
+    encoder.encode("labo-session-v1:" + env.GITHUB_CLIENT_ID + ":" + parts[1]));
+}
+
+async function githubAuth(request, env, url) {
+  if (url.origin !== productionOrigin) return error(404, "Adresse inconnue.");
+  if (request.method === "POST" && url.pathname === "/auth/github/logout") {
+    if (request.headers.get("Origin") !== productionOrigin) return error(403, "Origine refusée.");
+    return redirect("/outils.html", cookie(sessionCookie, "", 0), cookie(stateCookie, "", 0));
+  }
+  if (request.method !== "GET" || !["/auth/github/login", "/auth/github/callback"].includes(url.pathname)) {
+    return error(404, "Adresse inconnue.");
+  }
+  if (!env.GITHUB_CLIENT_ID || !env.GITHUB_CLIENT_SECRET) return error(503, "Connexion GitHub en cours de configuration.");
+
+  if (url.pathname === "/auth/github/login") {
+    const state = base64url(crypto.getRandomValues(new Uint8Array(32)).buffer);
+    const verifier = base64url(crypto.getRandomValues(new Uint8Array(32)).buffer);
+    const challenge = base64url(await crypto.subtle.digest("SHA-256", encoder.encode(verifier)));
+    const authorize = new URL("https://github.com/login/oauth/authorize");
+    authorize.search = new URLSearchParams({
+      client_id: env.GITHUB_CLIENT_ID, redirect_uri: callbackUrl, scope: "",
+      state, code_challenge: challenge, code_challenge_method: "S256"
+    });
+    return redirect(authorize.href, cookie(stateCookie, state + "." + verifier, 600));
+  }
+
+  const expiredState = cookie(stateCookie, "", 0);
+  const pending = /^([A-Za-z0-9_-]{43})\.([A-Za-z0-9_-]{43})$/.exec(readCookie(request, stateCookie) || "");
+  const code = url.searchParams.get("code");
+  if (!pending || pending[1] !== url.searchParams.get("state") || !code || code.length > 1024) {
+    return redirect("/outils.html?connexion=echec", expiredState);
+  }
+
+  try {
+    const exchange = await fetch("https://github.com/login/oauth/access_token", {
+      method: "POST",
+      headers: { Accept: "application/json" },
+      body: new URLSearchParams({
+        client_id: env.GITHUB_CLIENT_ID, client_secret: env.GITHUB_CLIENT_SECRET,
+        redirect_uri: callbackUrl, code, code_verifier: pending[2]
+      }),
+      redirect: "error"
+    });
+    if (!exchange.ok) return redirect("/outils.html?connexion=echec", expiredState);
+    const { access_token: token } = await exchange.json();
+    if (typeof token !== "string" || !token) return redirect("/outils.html?connexion=echec", expiredState);
+
+    const profile = await fetch("https://api.github.com/user", {
+      headers: { Authorization: "Bearer " + token, Accept: "application/vnd.github+json", "User-Agent": "Labo-Outils" },
+      redirect: "error"
+    });
+    if (!profile.ok) return redirect("/outils.html?connexion=echec", expiredState);
+    const { login } = await profile.json();
+    if (login?.toLowerCase() !== "seayousooon") return redirect("/outils.html?connexion=refusee", expiredState);
+
+    const duration = 3600;
+    const value = Math.floor(Date.now() / 1000 + duration) + "." + base64url(crypto.getRandomValues(new Uint8Array(16)).buffer);
+    const signature = await crypto.subtle.sign("HMAC", await signingKey(env.GITHUB_CLIENT_SECRET),
+      encoder.encode("labo-session-v1:" + env.GITHUB_CLIENT_ID + ":" + value));
+    return redirect("/outils.html", expiredState, cookie(sessionCookie, value + "." + base64url(signature), duration));
+  } catch {
+    return redirect("/outils.html?connexion=echec", expiredState);
+  }
+}
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
+    if (url.pathname.startsWith("/auth/github/")) return githubAuth(request, env, url);
     if (request.method === "GET" && ["/", "/outils.html"].includes(url.pathname)) {
+      const signedIn = await hasGitHubSession(request, env);
+      const outcome = url.searchParams.get("connexion");
+      const message = outcome === "refusee" ? "<p>Ce compte GitHub ne peut pas modifier les fiches.</p>"
+        : outcome === "echec" ? "<p>La connexion GitHub a échoué. Veuillez réessayer.</p>" : "";
+      const controls = signedIn
+        ? '<form method="post" action="/auth/github/logout"><button type="submit">Se déconnecter</button></form>'
+        : '<p><a href="/auth/github/login">Se connecter avec GitHub pour modifier les outils</a></p>';
       const html = page.replace('<html lang="fr">', '<html lang="fr" data-worker="oui">')
-        .replaceAll('href="./index.html"', 'href="https://seayousooon.github.io/Labo/"');
+        .replaceAll('href="./index.html"', 'href="https://seayousooon.github.io/Labo/"')
+        .replace('<p id="edition-status"', match => (url.origin === productionOrigin ? message + controls : "") + match);
       return new Response(html, { headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" } });
     }
     if (!url.pathname.startsWith("/api/")) return error(404, "Adresse inconnue.");
-    const canEdit = Boolean(env.ACCESS_AUD && ctx.access?.aud === env.ACCESS_AUD);
+    const signedIn = await hasGitHubSession(request, env);
+    const canEdit = signedIn || Boolean(env.ACCESS_AUD && ctx.access?.aud === env.ACCESS_AUD);
     const bucket = env.DATA;
     try {
       const { seed, ids, categories } = await readCatalogue();
@@ -142,11 +252,11 @@ export default {
         }));
         return json({ outils, canEdit: canEdit && Boolean(bucket), next: offset + group.length < seed.length ? offset + group.length : null });
       }
-      if (!canEdit) return error(403, "Connexion Cloudflare Access autorisée requise.");
+      if (!canEdit) return error(403, "Connectez-vous avec un compte GitHub autorisé.");
       if (!bucket) return error(503, "Le stockage R2 n’est pas configuré.");
       if (request.method !== "GET") {
         const origin = request.headers.get("origin");
-        if (!origin || (origin !== url.origin && origin !== env.ALLOWED_ORIGIN)) {
+        if (!origin || (origin !== url.origin && (signedIn || origin !== env.ALLOWED_ORIGIN))) {
           return error(403, "Origine refusée.");
         }
       }
