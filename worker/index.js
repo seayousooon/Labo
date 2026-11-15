@@ -206,7 +206,7 @@ async function githubAuth(request, env, url) {
         client_id: env.GITHUB_CLIENT_ID, client_secret: env.GITHUB_CLIENT_SECRET,
         redirect_uri: callbackUrl, code, code_verifier: pending[2]
       }),
-      redirect: "error"
+      redirect: "manual"
     });
     const result = await exchange.json().catch(() => null);
     if (result?.error === "incorrect_client_credentials") return fail("identifiants");
@@ -215,7 +215,7 @@ async function githubAuth(request, env, url) {
 
     const profile = await fetch("https://api.github.com/user", {
       headers: { Authorization: "Bearer " + token, Accept: "application/vnd.github+json", "User-Agent": "Labo-Outils" },
-      redirect: "error"
+      redirect: "manual"
     });
     if (!profile.ok) return fail("profil");
     const { login } = await profile.json();
