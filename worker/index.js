@@ -1,8 +1,56 @@
 import page from "../outils.html";
-import seed from "./outils-init.json";
 
-const catalogue = new Map(seed.map(tool => [tool.outilId, tool]));
-const categories = new Set(seed.map(tool => tool.categorie));
+const fields = ["numero", "nom", "url", "description", "categorie", "acces", "date", "source"];
+let initialCatalogue;
+
+async function readCatalogue() {
+  if (initialCatalogue) return initialCatalogue;
+
+  const fiches = [];
+  const ids = new Set();
+  let current;
+  const cell = {
+    element(element) {
+      const index = current.cells.length;
+      current.cells.push("");
+      current.index = index;
+      element.onEndTag(() => { current.index = -1; });
+    },
+    text(text) {
+      if (current.index < fields.length && current.index >= 0) {
+        current.cells[current.index] += text.text;
+      }
+    }
+  };
+  const rewriter = new HTMLRewriter()
+    .on("tr[data-outil-id]", {
+      element(row) {
+        current = { id: row.getAttribute("data-outil-id"), cells: [], index: -1 };
+        row.onEndTag(() => {
+          if (!current.id || ids.has(current.id) || current.cells.length !== fields.length + 1) {
+            throw new Error("Le tableau contient une fiche invalide.");
+          }
+          const fiche = Object.fromEntries(fields.map((field, index) => [field, current.cells[index].trim()]));
+          // Le texte de HTMLRewriter peut contenir les entités du document.
+          for (const field of fields) {
+            fiche[field] = fiche[field].replace(/&(amp|lt|gt|quot|#39);/g,
+              (_, entity) => ({ amp: "&", lt: "<", gt: ">", quot: '"', "#39": "'" })[entity]);
+          }
+          fiche.numero = Number(fiche.numero);
+          fiche.date = fiche.date === "Non indiquée" ? null : fiche.date;
+          ids.add(current.id);
+          fiches.push({ outilId: current.id, ...fiche, personnalises: {} });
+        });
+      }
+    })
+    .on("tr[data-outil-id] > td", cell)
+    .on("tr[data-outil-id] > th", cell);
+
+  await rewriter.transform(new Response(page)).text();
+  if (!fiches.length) throw new Error("Le tableau des outils est vide.");
+  initialCatalogue = { seed: fiches, ids, categories: new Set(fiches.map(fiche => fiche.categorie)) };
+  return initialCatalogue;
+}
 const limits = { nom: 160, url: 2048, description: 4000, categorie: 100, acces: 1000, source: 300 };
 const createOnly = { onlyIf: new Headers({ "If-None-Match": "*" }) };
 const json = (data, status = 200) => Response.json(data, { status, headers: { "Cache-Control": "no-store" } });
@@ -18,7 +66,7 @@ function validCustom(value, depth = 0) {
   return plain(value) && Object.keys(value).length === 1 && validDate(value.date);
 }
 
-function validTool(tool) {
+function validTool(tool, categories) {
   if (!plain(tool) || !Number.isInteger(tool.numero) || tool.numero < 1 || tool.numero > 999999) return false;
   if (!Object.entries(limits).every(([key, max]) => typeof tool[key] === "string" && tool[key].length <= max)) return false;
   if (!tool.nom.trim() || !categories.has(tool.categorie) || !(tool.date === null || validDate(tool.date))) return false;
@@ -64,6 +112,7 @@ export default {
     const canEdit = Boolean(env.ACCESS_AUD && ctx.access?.aud === env.ACCESS_AUD);
     const bucket = env.OUTILS_R2;
     try {
+      const { seed, ids, categories } = await readCatalogue();
       if (request.method === "GET" && url.pathname === "/api/outils") {
         const offset = Number(url.searchParams.get("offset") ?? 0);
         if (!Number.isInteger(offset) || offset < 0 || offset >= seed.length) return error(400, "Page inconnue.");
@@ -97,7 +146,7 @@ export default {
         return json({ items: items.filter(Boolean), next: result.truncated ? result.cursor : null });
       }
       const [, , collection, outilId, section, extra] = url.pathname.split("/");
-      if (collection !== "outils" || !catalogue.has(outilId) || extra) return error(404, "Outil inconnu.");
+      if (collection !== "outils" || !ids.has(outilId) || extra) return error(404, "Outil inconnu.");
       const key = "fiches/" + outilId + ".json";
       if (section === "commentaires" && request.method === "POST") {
         const payload = await readPayload(request);
@@ -118,7 +167,7 @@ export default {
       }
       if (!section && request.method === "PUT") {
         const payload = await readPayload(request);
-        if (!validTool(payload?.fiche) || typeof payload?.version !== "string" || !/^[a-f0-9]{32}$/.test(payload.version)) {
+        if (!validTool(payload?.fiche, categories) || typeof payload?.version !== "string" || !/^[a-f0-9]{32}$/.test(payload.version)) {
           return error(400, "Vérifiez les champs, l’URL HTTP/HTTPS et les types des valeurs.");
         }
         const { numero, nom, url, description, categorie, acces, date, source, personnalises } = payload.fiche;
