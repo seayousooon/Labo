@@ -171,8 +171,11 @@ export default {
         return json({ ok: true });
       }
 
-      if (request.method === "GET" && url.pathname === "/api/commentaires") {
-        const result = await bucket.list({ prefix: "commentaires/", limit: 20, cursor: url.searchParams.get("cursor") || undefined });
+      const commentsRoute = /^\/api\/outils\/([^/]+)\/commentaires$/.exec(url.pathname);
+      if (request.method === "GET" && (commentsRoute || url.pathname === "/api/commentaires")) {
+        if (commentsRoute && !ids.has(commentsRoute[1])) return error(404, "Outil inconnu.");
+        const prefix = commentsRoute ? "commentaires/" + commentsRoute[1] + "/" : "commentaires/";
+        const result = await bucket.list({ prefix, limit: 20, cursor: url.searchParams.get("cursor") || undefined });
         const items = await Promise.all(result.objects.map(async ({ key }) => (await bucket.get(key))?.json()));
         return json({ items: items.filter(Boolean), next: result.truncated ? result.cursor : null });
       }
