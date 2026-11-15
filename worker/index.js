@@ -157,6 +157,16 @@ async function hasGitHubSession(request, env) {
     encoder.encode("labo-session-v1:" + env.GITHUB_CLIENT_ID + ":" + parts[1]));
 }
 
+const githubFailureMessages = new Map([
+  ["cookie", "Le cookie de connexion est absent ou invalide."],
+  ["etat", "Le retour GitHub ne correspond pas à la tentative de connexion."],
+  ["code", "GitHub n’a pas transmis de code de connexion valide."],
+  ["identifiants", "GitHub a rejeté les identifiants de l’application."],
+  ["echange", "GitHub n’a pas accepté le code de connexion."],
+  ["profil", "Le Worker n’a pas pu lire le profil GitHub."],
+  ["echec", "La connexion GitHub a échoué. Veuillez réessayer."]
+]);
+
 async function githubAuth(request, env, url) {
   if (url.origin !== productionOrigin) return error(404, "Adresse inconnue.");
   if (request.method === "POST" && url.pathname === "/auth/github/logout") {
@@ -183,9 +193,10 @@ async function githubAuth(request, env, url) {
   const expiredState = cookie(stateCookie, "", 0);
   const pending = /^([A-Za-z0-9_-]{43})\.([A-Za-z0-9_-]{43})$/.exec(readCookie(request, stateCookie) || "");
   const code = url.searchParams.get("code");
-  if (!pending || pending[1] !== url.searchParams.get("state") || !code || code.length > 1024) {
-    return redirect("/outils.html?connexion=echec", expiredState);
-  }
+  const fail = reason => redirect("/outils.html?connexion=" + reason, expiredState);
+  if (!pending) return fail("cookie");
+  if (pending[1] !== url.searchParams.get("state")) return fail("etat");
+  if (!code || code.length > 1024) return fail("code");
 
   try {
     const exchange = await fetch("https://github.com/login/oauth/access_token", {
@@ -197,15 +208,16 @@ async function githubAuth(request, env, url) {
       }),
       redirect: "error"
     });
-    if (!exchange.ok) return redirect("/outils.html?connexion=echec", expiredState);
-    const { access_token: token } = await exchange.json();
-    if (typeof token !== "string" || !token) return redirect("/outils.html?connexion=echec", expiredState);
+    const result = await exchange.json().catch(() => null);
+    if (result?.error === "incorrect_client_credentials") return fail("identifiants");
+    const token = result?.access_token;
+    if (!exchange.ok || typeof token !== "string" || !token) return fail("echange");
 
     const profile = await fetch("https://api.github.com/user", {
       headers: { Authorization: "Bearer " + token, Accept: "application/vnd.github+json", "User-Agent": "Labo-Outils" },
       redirect: "error"
     });
-    if (!profile.ok) return redirect("/outils.html?connexion=echec", expiredState);
+    if (!profile.ok) return fail("profil");
     const { login } = await profile.json();
     if (login?.toLowerCase() !== "seayousooon") return redirect("/outils.html?connexion=refusee", expiredState);
 
@@ -226,8 +238,9 @@ export default {
     if (request.method === "GET" && ["/", "/outils.html"].includes(url.pathname)) {
       const signedIn = await hasGitHubSession(request, env);
       const outcome = url.searchParams.get("connexion");
-      const message = outcome === "refusee" ? "<p>Ce compte GitHub ne peut pas modifier les fiches.</p>"
-        : outcome === "echec" ? "<p>La connexion GitHub a échoué. Veuillez réessayer.</p>" : "";
+      const explanation = outcome === "refusee" ? "Ce compte GitHub ne peut pas modifier les fiches."
+        : githubFailureMessages.get(outcome);
+      const message = explanation ? "<p>" + explanation + "</p>" : "";
       const controls = signedIn
         ? '<form method="post" action="/auth/github/logout"><button type="submit">Se déconnecter</button></form>'
         : '<p><a href="/auth/github/login">Se connecter avec GitHub pour modifier les outils</a></p>';
