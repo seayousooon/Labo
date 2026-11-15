@@ -216,6 +216,19 @@ if (document.documentElement.dataset.worker === 'oui') {
     }
   }
 
+  async function loadComments(outilId) {
+    const path = 'outils/' + outilId + '/commentaires';
+    const items = new Map();
+    let cursor;
+    do {
+      const page = await api(path + (cursor ? '?cursor=' + encodeURIComponent(cursor) : ''));
+      for (const comment of page.items) items.set(comment.id, comment);
+      cursor = page.next;
+    } while (cursor);
+    for (const comment of comments.get(outilId) || []) items.set(comment.id, comment);
+    comments.set(outilId, [...items.values()]);
+  }
+
   function openEditor(row, button) {
     const entry = entries.get(row.dataset.outilId);
     const commentMode = button.dataset.action === 'commentaire';
@@ -229,7 +242,18 @@ if (document.documentElement.dataset.worker === 'oui') {
     commentFields.hidden = commentFields.disabled = !commentMode;
     for (const field of fields) form.elements.namedItem(field).value = entry.fiche[field] ?? '';
     form.elements.namedItem('personnalises').value = JSON.stringify(entry.fiche.personnalises, null, 2);
-    if (commentMode) showComments(entry.fiche.outilId);
+    const current = active;
+    if (commentMode) {
+      const list = document.getElementById('commentaires');
+      const message = document.createElement('li');
+      message.textContent = 'Chargement des commentaires…';
+      list.replaceChildren(message);
+      loadComments(entry.fiche.outilId).then(() => {
+        if (active === current && editor.open) showComments(entry.fiche.outilId);
+      }).catch(() => {
+        if (active === current && editor.open) message.textContent = 'Impossible de charger les commentaires.';
+      });
+    }
     editor.showModal();
     prepareTurnstile().catch(error => { problem.textContent = error.message; });
   }
@@ -312,16 +336,6 @@ if (document.documentElement.dataset.worker === 'oui') {
       for (const offset of [0, 20, 40, 60]) await api('initialiser?offset=' + offset, 'POST');
       ({ results } = await loadFiches());
     }
-    let cursor;
-    do {
-      const page = await api('commentaires' + (cursor ? '?cursor=' + encodeURIComponent(cursor) : ''));
-      for (const comment of page.items) {
-        const list = comments.get(comment.outilId) || [];
-        list.push(comment);
-        comments.set(comment.outilId, list);
-      }
-      cursor = page.next;
-    } while (cursor);
     for (const [id, entry] of results) entries.set(id, entry);
     for (const row of rows) {
       if (!entries.get(row.dataset.outilId)?.version) continue;
