@@ -6,6 +6,6 @@
   "preview_urls": false,
   "keep_vars": true,
   "r2_buckets": [
-    { "binding": "OUTILS_R2", "bucket_name": "labo-outils" }
+    { "binding": "DATA", "bucket_name": "soumission" }
   ]
 }

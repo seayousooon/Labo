@@ -110,7 +110,7 @@ export default {
     }
     if (!url.pathname.startsWith("/api/")) return error(404, "Adresse inconnue.");
     const canEdit = Boolean(env.ACCESS_AUD && ctx.access?.aud === env.ACCESS_AUD);
-    const bucket = env.OUTILS_R2;
+    const bucket = env.DATA;
     try {
       const { seed, ids, categories } = await readCatalogue();
       if (request.method === "GET" && url.pathname === "/api/outils") {
