@@ -99,6 +99,7 @@ button{font:inherit;min-height:44px;margin:4px}dialog{width:min(36rem,94vw);max-
 </fieldset>
 <fieldset id="comment-fields"><legend>Commentaires</legend><ul id="commentaires"></ul>
 <label for="commentaire">Nouveau commentaire</label><textarea id="commentaire" name="commentaire" maxlength="2000" required></textarea></fieldset>
+<div id="turnstile-widget"></div>
 <p id="form-error" role="alert"></p>
 <button id="save" type="submit">Enregistrer</button><button id="cancel" type="button">Fermer</button>
 </form></dialog></main><footer>Labo — Projet de formation</footer>
@@ -126,6 +127,36 @@ if (document.documentElement.dataset.worker === 'oui') {
   const cancel = document.getElementById('cancel');
   let active;
   let saving = false;
+  let widgetId;
+  let turnstileReady;
+
+  function prepareTurnstile() {
+    if (!turnstileReady) {
+      turnstileReady = api('turnstile').then(config => new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+        script.onload = () => window.turnstile.ready(() => {
+          try {
+            widgetId = window.turnstile.render('#turnstile-widget', {
+              sitekey: config.siteKey, action: config.action, 'response-field': false
+            });
+            resolve();
+          } catch (error) {
+            reject(error);
+          }
+        });
+        script.onerror = () => {
+          script.remove();
+          reject(new Error('Impossible de charger Turnstile.'));
+        };
+        document.head.append(script);
+      })).catch(error => {
+        turnstileReady = undefined;
+        throw error;
+      });
+    }
+    return turnstileReady;
+  }
 
   for (const option of [...filter.options].slice(1)) categoryInput.add(option.cloneNode(true));
 
@@ -200,6 +231,7 @@ if (document.documentElement.dataset.worker === 'oui') {
     form.elements.namedItem('personnalises').value = JSON.stringify(entry.fiche.personnalises, null, 2);
     if (commentMode) showComments(entry.fiche.outilId);
     editor.showModal();
+    prepareTurnstile().catch(error => { problem.textContent = error.message; });
   }
 
   cancel.addEventListener('click', () => editor.close());
@@ -214,13 +246,16 @@ if (document.documentElement.dataset.worker === 'oui') {
     const outilId = entry.fiche.outilId;
     const path = 'outils/' + outilId;
     try {
+      await prepareTurnstile();
+      const turnstileToken = window.turnstile.getResponse(widgetId);
+      if (!turnstileToken) throw new Error('Terminez la vérification Turnstile avant d’enregistrer.');
       if (commentMode) {
         const texte = form.elements.namedItem('commentaire').value.trim();
         if (texte !== active.pendingText) {
           active.pendingText = texte;
           active.commentId = crypto.randomUUID();
         }
-        const comment = await api(path + '/commentaires', 'POST', { texte, id: active.commentId });
+        const comment = await api(path + '/commentaires', 'POST', { texte, id: active.commentId, turnstileToken });
         const list = (comments.get(outilId) || []).filter(item => item.id !== comment.id);
         comments.set(outilId, [...list, comment]);
         showComments(outilId);
@@ -239,7 +274,7 @@ if (document.documentElement.dataset.worker === 'oui') {
         }
         const address = new URL(fiche.url);
         if (!['http:', 'https:'].includes(address.protocol)) throw new Error('L’URL doit commencer par http:// ou https://.');
-        const updated = await api(path, 'PUT', { fiche, version: entry.version });
+        const updated = await api(path, 'PUT', { fiche, version: entry.version, turnstileToken });
         entries.set(outilId, updated);
         render(row, updated);
         editor.close();
@@ -258,6 +293,7 @@ if (document.documentElement.dataset.worker === 'oui') {
       }
     } finally {
       saving = save.disabled = cancel.disabled = false;
+      if (widgetId !== undefined) window.turnstile.reset(widgetId);
     }
   });
 

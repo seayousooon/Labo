@@ -6,6 +6,14 @@
   "preview_urls": false,
   "keep_vars": true,
   "r2_buckets": [
-    { "binding": "DATA", "bucket_name": "soumission" }
-  ]
+    {
+      "binding": "DATA",
+      "bucket_name": "labo-outils"
+    }
+  ],
+  "vars": {
+    "ALLOWED_ORIGIN": "https://seayousooon.github.io",
+    "TURNSTILE_HOSTNAME": "",
+    "TURNSTILE_ACTION": "soumission"
+  }
 }

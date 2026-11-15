@@ -100,6 +100,25 @@ async function readPayload(request) {
   try { return JSON.parse(body + decoder.decode()); } catch { return null; }
 }
 
+async function verifyTurnstile(token, env, hostname) {
+  if (!env.TURNSTILE_SECRET_KEY || !env.TURNSTILE_SITE_KEY || !env.TURNSTILE_ACTION) {
+    return error(503, "Turnstile doit être configuré pour enregistrer.");
+  }
+  if (typeof token !== "string" || !token || token.length > 2048) {
+    return error(400, "Effectuez la vérification Turnstile avant d’enregistrer.");
+  }
+  const response = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
+    method: "POST",
+    body: new URLSearchParams({ secret: env.TURNSTILE_SECRET_KEY, response: token })
+  });
+  if (!response.ok) return error(503, "Vérification Turnstile temporairement indisponible.");
+  const result = await response.json();
+  if (!result.success || result.hostname !== (env.TURNSTILE_HOSTNAME || hostname) || result.action !== env.TURNSTILE_ACTION) {
+    return error(403, "Vérification Turnstile refusée. Réessayez.");
+  }
+  return null;
+}
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
@@ -125,7 +144,19 @@ export default {
       }
       if (!canEdit) return error(403, "Connexion Cloudflare Access autorisée requise.");
       if (!bucket) return error(503, "Le stockage R2 n’est pas configuré.");
-      if (request.method !== "GET" && request.headers.get("origin") !== url.origin) return error(403, "Origine refusée.");
+      if (request.method !== "GET") {
+        const origin = request.headers.get("origin");
+        if (!origin || (origin !== url.origin && origin !== env.ALLOWED_ORIGIN)) {
+          return error(403, "Origine refusée.");
+        }
+      }
+
+      if (request.method === "GET" && url.pathname === "/api/turnstile") {
+        if (!env.TURNSTILE_SITE_KEY || !env.TURNSTILE_SECRET_KEY || !env.TURNSTILE_ACTION) {
+          return error(503, "Turnstile doit être configuré pour enregistrer.");
+        }
+        return json({ siteKey: env.TURNSTILE_SITE_KEY, action: env.TURNSTILE_ACTION });
+      }
 
       if (url.pathname === "/api/initialiser" && request.method === "POST") {
         const offset = Number(url.searchParams.get("offset") ?? 0);
@@ -155,6 +186,8 @@ export default {
         if (!texte || texte.length > 2000 || typeof id !== "string" || !/^[0-9a-f-]{36}$/.test(id)) {
           return error(400, "Commentaire invalide (1 à 2 000 caractères).");
         }
+        const verification = await verifyTurnstile(payload.turnstileToken, env, url.hostname);
+        if (verification) return verification;
         const commentKey = "commentaires/" + outilId + "/" + id + ".json";
         const comment = { id, outilId, texte, date: new Date().toISOString() };
         if (await bucket.put(commentKey, JSON.stringify(comment), createOnly)) return json(comment, 201);
@@ -170,6 +203,8 @@ export default {
         if (!validTool(payload?.fiche, categories) || typeof payload?.version !== "string" || !/^[a-f0-9]{32}$/.test(payload.version)) {
           return error(400, "Vérifiez les champs, l’URL HTTP/HTTPS et les types des valeurs.");
         }
+        const verification = await verifyTurnstile(payload.turnstileToken, env, url.hostname);
+        if (verification) return verification;
         const { numero, nom, url, description, categorie, acces, date, source, personnalises } = payload.fiche;
         const fiche = { outilId, numero, nom, url, description, categorie, acces, date, source, personnalises };
         const saved = await bucket.put(key, JSON.stringify(fiche), { onlyIf: { etagMatches: payload.version } });
