@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Contact — Labo</title>
+<style>
+:root{color-scheme:light;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#263e3c;background:#fffdf4;line-height:1.65}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;background:linear-gradient(125deg,#fff4bd 0%,#fffdf4 45%,#d9f7ed 100%)}header,main,footer{max-width:1000px;margin:auto;padding:24px}
+header{background:rgba(255,255,255,.65);display:flex;align-items:center;justify-content:space-between;gap:24px;flex-wrap:wrap;border-bottom:1px solid #9dcfc3}
+.brand{font-size:24px;font-weight:800}a{color:#006b63;text-underline-offset:4px}
+header a,.tool-link{display:inline-flex;align-items:center;min-height:44px;font-weight:700}
+main{padding-top:48px;padding-bottom:64px}h1,h2,h3{color:#006b63;line-height:1.2}
+h1{font-size:clamp(32px,6vw,52px);margin:0 0 24px}h2{font-size:24px}h3{font-size:22px;margin-top:0}
+.intro{font-size:20px;max-width:680px;color:#006b63}.greeting,.category{color:#ad3c26;font-weight:650}
+.grid,.tools{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px}
+.card{min-width:0;background:#fff;box-shadow:0 8px 24px rgba(0,107,99,.08);border:1px solid #9dcfc3;border-radius:12px;padding:24px}
+.card p{margin-bottom:16px}.tools .card{display:flex;flex-direction:column;align-items:flex-start}
+.tools .card p:not(.category){flex:1}.category{font-size:14px;margin:0 0 12px}
+.button{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:12px 20px;border-radius:8px;background:#006b63;color:#fff;font-weight:700;text-decoration:none}
+.button:hover{background:#00534d}a:hover{text-decoration:underline}
+a:focus-visible{outline:3px solid #ad3c26;outline-offset:4px}
+.skip{position:absolute;left:16px;top:-100px;background:white;padding:12px;z-index:10}.skip:focus{top:12px}
+section+section{margin-top:40px}footer{border-top:1px solid #9dcfc3;font-size:14px}
+@media(max-width:650px){.grid,.tools{grid-template-columns:1fr}header,main,footer{padding:20px}main{padding-top:32px}}
+footer nav ul{display:flex;flex-wrap:wrap;gap:4px 20px;list-style:none;margin:0;padding:0}
+footer nav a{display:inline-flex;align-items:center;min-height:44px}
+main{min-height:45vh}
+form{max-width:42rem}
+label{display:block;font-weight:650}
+input,textarea{display:block;width:100%;padding:8px;min-height:44px;font:inherit;color:inherit;background:#fff;border:1px solid #647f7c;border-radius:6px}
+textarea{resize:vertical}
+:focus-visible{outline:3px solid #ad3c26;outline-offset:4px}
+button{font:inherit;border:0;cursor:pointer}
+button:disabled{opacity:.65;cursor:default}
+dt{font-weight:700}
+dd{margin:0 0 12px}
+</style>
+</head>
+<body>
+<a class="skip" href="#contenu">Aller au contenu</a>
+<header><a class="brand" href="./index.html">Labo</a><nav aria-label="Navigation principale"><a href="./index.html">Accueil</a></nav></header>
+<main id="contenu">
+<h1>Contact</h1>
+<p>Tous les champs sont obligatoires.</p>
+<form id="contact-form" method="post">
+<p><label for="email">Adresse électronique</label><input id="email" name="email" type="email" autocomplete="email" maxlength="254" required></p>
+<p><label for="sujet">Sujet</label><input id="sujet" name="sujet" type="text" maxlength="150" required></p>
+<p><label for="message">Message</label><textarea id="message" name="message" rows="7" maxlength="4000" required></textarea></p>
+<div id="turnstile"></div>
+<button class="button" type="submit" disabled>Envoyer</button>
+<p>L’adresse électronique, le sujet et le message sont enregistrés pour traiter votre demande. <a href="./donnees-personnelles.html">En savoir plus sur les données personnelles</a>.</p>
+<p id="contact-status" role="status" aria-atomic="true"></p>
+</form>
+<noscript><p>Activez JavaScript pour utiliser le formulaire de contact.</p></noscript>
+<script>
+const contactUrl = new URL('/contact', 'https://labo-outils.allonsalaplage.workers.dev');
+const form = document.getElementById('contact-form');
+const button = form.querySelector('button');
+const status = document.getElementById('contact-status');
+let widget;
+let token = '';
+let sending = false;
+
+function updateToken(value) {
+  token = value;
+  button.disabled = sending || !token;
+}
+
+async function initializeTurnstile() {
+  status.textContent = 'Chargement de la vérification Turnstile…';
+  try {
+    const response = await fetch(contactUrl, { credentials: 'omit' });
+    const config = await response.json();
+    if (!response.ok) throw new Error(config.message || 'Vérification indisponible.');
+    const script = document.createElement('script');
+    script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+    script.onerror = () => { status.textContent = 'Turnstile ne se charge pas. Rechargez la page pour réessayer.'; };
+    script.onload = () => {
+      try {
+        widget = window.turnstile.render('#turnstile', {
+          sitekey: config.siteKey,
+          action: config.action,
+          'response-field': false,
+          callback(value) { updateToken(value); },
+          'expired-callback'() {
+            updateToken('');
+            if (!sending) status.textContent = 'La vérification a expiré. Renouvelez-la pour envoyer votre message.';
+          },
+          'error-callback'() {
+            updateToken('');
+            status.textContent = 'Turnstile n’a pas pu terminer la vérification. Réessayez.';
+          }
+        });
+        status.textContent = '';
+      } catch {
+        status.textContent = 'Impossible de démarrer Turnstile. Rechargez la page pour réessayer.';
+      }
+    };
+    document.head.append(script);
+  } catch (error) {
+    status.textContent = error instanceof TypeError
+      ? 'Impossible de joindre le formulaire de contact. Réessayez plus tard.'
+      : error.message;
+  }
+}
+
+form.addEventListener('submit', async event => {
+  event.preventDefault();
+  if (sending || !token) return;
+  const data = Object.fromEntries(new FormData(form));
+  const payload = { ...data, turnstileToken: token };
+  sending = true;
+  button.disabled = true;
+  status.textContent = 'Envoi en cours…';
+  try {
+    const response = await fetch(contactUrl, {
+      method: 'POST',
+      credentials: 'omit',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (response.status === 201) {
+      form.reset();
+      status.textContent = 'Message envoyé';
+    } else {
+      const data = await response.json().catch(() => null);
+      status.textContent = data?.message || 'Envoi refusé (HTTP ' + response.status + ').';
+    }
+  } catch {
+    status.textContent = 'Impossible de confirmer l’envoi. Vérifiez votre connexion.';
+  } finally {
+    sending = false;
+    updateToken('');
+    window.turnstile.reset(widget);
+  }
+});
+
+initializeTurnstile();
+</script>
+</main>
+<footer>
+<nav aria-label="Pied de page">
+<ul>
+<li><a href="./contact.html">Contact</a></li>
+<li><a href="./aide.html">Aide</a></li>
+<li><a href="./info-site.html">Info site</a></li>
+<li><a href="./accessibilite.html">Accessibilité : non conforme</a></li>
+<li><a href="./index.html">Site de Labo</a></li>
+<li><a href="./donnees-personnelles.html">Cookies / Données personnelles</a></li>
+<li><a href="./mentions-legales.html">Mentions légales</a></li>
+</ul>
+</nav>
+</footer>
+</body>
+</html>
