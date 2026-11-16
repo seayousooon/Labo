@@ -134,14 +134,22 @@ if (document.documentElement.dataset.worker === 'oui') {
     if (!turnstileReady) {
       turnstileReady = api('turnstile').then(config => new Promise((resolve, reject) => {
         const script = document.createElement('script');
-        script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
-        const timeout = setTimeout(() => {
-          script.onload = script.onerror = null;
-          script.remove();
-          reject(new Error('Turnstile ne se charge pas. Vérifiez que Firefox autorise challenges.cloudflare.com, puis réessayez.'));
-        }, 12000);
-        script.onload = () => window.turnstile.ready(() => {
+        let finished = false;
+        const finish = error => {
+          if (finished) return;
+          finished = true;
           clearTimeout(timeout);
+          delete window.laboTurnstileLoaded;
+          script.onload = script.onerror = null;
+          if (error) {
+            script.remove();
+            reject(error);
+          } else {
+            resolve();
+          }
+        };
+        const renderWidget = () => {
+          if (finished) return;
           try {
             widgetId = window.turnstile.render('#turnstile-widget', {
               sitekey: config.siteKey, action: config.action, 'response-field': false,
@@ -150,16 +158,21 @@ if (document.documentElement.dataset.worker === 'oui') {
                 return true;
               }
             });
-            resolve();
+            if (!widgetId) throw new Error('Turnstile n’a pas créé le widget de vérification.');
+            finish();
           } catch (error) {
-            reject(error);
+            finish(error);
           }
-        });
-        script.onerror = () => {
-          clearTimeout(timeout);
-          script.remove();
-          reject(new Error('Impossible de charger Turnstile.'));
         };
+        const timeout = setTimeout(() => finish(new Error('Turnstile n’a pas terminé son chargement.')), 12000);
+        window.laboTurnstileLoaded = renderWidget;
+        script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit&onload=laboTurnstileLoaded';
+        script.onload = () => {
+          if (typeof window.turnstile?.render !== 'function') {
+            finish(new Error('Le script Turnstile a été téléchargé, mais son API est indisponible dans le navigateur.'));
+          }
+        };
+        script.onerror = () => finish(new Error('Impossible de télécharger le script Turnstile.'));
         document.head.append(script);
       })).catch(error => {
         turnstileReady = undefined;
