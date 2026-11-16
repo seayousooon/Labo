@@ -135,10 +135,20 @@ if (document.documentElement.dataset.worker === 'oui') {
       turnstileReady = api('turnstile').then(config => new Promise((resolve, reject) => {
         const script = document.createElement('script');
         script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+        const timeout = setTimeout(() => {
+          script.onload = script.onerror = null;
+          script.remove();
+          reject(new Error('Turnstile ne se charge pas. Vérifiez que Firefox autorise challenges.cloudflare.com, puis réessayez.'));
+        }, 12000);
         script.onload = () => window.turnstile.ready(() => {
+          clearTimeout(timeout);
           try {
             widgetId = window.turnstile.render('#turnstile-widget', {
-              sitekey: config.siteKey, action: config.action, 'response-field': false
+              sitekey: config.siteKey, action: config.action, 'response-field': false,
+              'error-callback': code => {
+                problem.textContent = 'La vérification Turnstile a échoué (code ' + code + ').';
+                return true;
+              }
             });
             resolve();
           } catch (error) {
@@ -146,6 +156,7 @@ if (document.documentElement.dataset.worker === 'oui') {
           }
         });
         script.onerror = () => {
+          clearTimeout(timeout);
           script.remove();
           reject(new Error('Impossible de charger Turnstile.'));
         };
@@ -163,6 +174,7 @@ if (document.documentElement.dataset.worker === 'oui') {
   async function api(path, method = 'GET', body) {
     const response = await fetch('/api/' + path, {
       method,
+      signal: AbortSignal.timeout(20000),
       headers: body === undefined ? {} : { 'Content-Type': 'application/json' },
       body: body === undefined ? undefined : JSON.stringify(body)
     });
@@ -307,7 +319,9 @@ if (document.documentElement.dataset.worker === 'oui') {
         status.textContent = 'Fiche enregistrée pour ' + updated.fiche.nom + '.';
       }
     } catch (error) {
-      problem.textContent = error.message;
+      problem.textContent = error.name === 'TimeoutError'
+        ? 'Le Worker tarde à répondre. Vérifiez si votre modification apparaît avant de réessayer.'
+        : error.message;
       if (error.message.startsWith('La fiche a changé')) {
         api('outils/' + outilId).then(latest => {
           entries.set(outilId, latest);
