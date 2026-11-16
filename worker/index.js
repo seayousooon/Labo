@@ -330,8 +330,8 @@ export default {
         }
         const verification = await verifyTurnstile(payload.turnstileToken, env, url.hostname);
         if (verification) return verification;
-        const { numero, nom, url, description, categorie, acces, date, source, personnalises } = payload.fiche;
-        const fiche = { outilId, numero, nom, url, description, categorie, acces, date, source, personnalises };
+        const { numero, nom, url: ficheUrl, description, categorie, acces, date, source, personnalises } = payload.fiche;
+        const fiche = { outilId, numero, nom, url: ficheUrl, description, categorie, acces, date, source, personnalises };
         const onlyIf = new Headers({ "If-Match": '"' + payload.version + '"' });
         const saved = await bucket.put(key, JSON.stringify(fiche), { onlyIf }).catch(cause => {
           const code = /\((\d{5})\)/.exec(String(cause?.message ?? ""))?.[1];
