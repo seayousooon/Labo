@@ -107,12 +107,11 @@ async function verifyTurnstile(token, env, hostname) {
   if (typeof token !== "string" || !token || token.length > 2048) {
     return error(400, "Effectuez la vérification Turnstile avant d’enregistrer.");
   }
-  const response = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
+  const result = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
     method: "POST",
     body: new URLSearchParams({ secret: env.TURNSTILE_SECRET_KEY, response: token })
-  });
-  if (!response.ok) return error(503, "Vérification Turnstile temporairement indisponible.");
-  const result = await response.json();
+  }).then(response => response.ok ? response.json() : null).catch(() => null);
+  if (!result) return error(503, "Vérification Turnstile temporairement indisponible.");
   if (!result.success || result.hostname !== (env.TURNSTILE_HOSTNAME || hostname) || result.action !== env.TURNSTILE_ACTION) {
     return error(403, "Vérification Turnstile refusée. Réessayez.");
   }
@@ -333,7 +332,12 @@ export default {
         if (verification) return verification;
         const { numero, nom, url, description, categorie, acces, date, source, personnalises } = payload.fiche;
         const fiche = { outilId, numero, nom, url, description, categorie, acces, date, source, personnalises };
-        const saved = await bucket.put(key, JSON.stringify(fiche), { onlyIf: { etagMatches: payload.version } });
+        const onlyIf = new Headers({ "If-Match": '"' + payload.version + '"' });
+        const saved = await bucket.put(key, JSON.stringify(fiche), { onlyIf }).catch(cause => {
+          const code = /\((\d{5})\)/.exec(String(cause?.message ?? ""))?.[1];
+          console.error("Échec de l’écriture conditionnelle R2", { code: code ?? "inconnu" });
+          throw cause;
+        });
         return saved ? json({ fiche, version: saved.etag }) : error(409, "La fiche a changé. Fermez puis rouvrez la fiche avant de réappliquer vos changements.");
       }
       return error(404, "Adresse inconnue.");
