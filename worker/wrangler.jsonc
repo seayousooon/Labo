@@ -12,7 +12,7 @@
     }
   ],
   "vars": {
-    "ALLOWED_ORIGIN": "https://seayousooon.github.io",
+    "ALLOWED_ORIGIN": "https://labo.allonsalaplage.workers.dev",
     "TURNSTILE_HOSTNAME": "",
     "TURNSTILE_ACTION": "soumission"
   }
