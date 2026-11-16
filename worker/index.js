@@ -1,4 +1,19 @@
 import page from "../outils.html";
+import infoPage0 from "../contact.html";
+import infoPage1 from "../aide.html";
+import infoPage2 from "../info-site.html";
+import infoPage3 from "../accessibilite.html";
+import infoPage4 from "../donnees-personnelles.html";
+import infoPage5 from "../mentions-legales.html";
+
+const supportingPages = new Map([
+  ["/contact.html", infoPage0],
+  ["/aide.html", infoPage1],
+  ["/info-site.html", infoPage2],
+  ["/accessibilite.html", infoPage3],
+  ["/donnees-personnelles.html", infoPage4],
+  ["/mentions-legales.html", infoPage5]
+]);
 
 const fields = ["numero", "nom", "url", "description", "categorie", "acces", "date", "source"];
 let initialCatalogue;
@@ -80,7 +95,7 @@ function validTool(tool, categories) {
   }
 }
 
-async function readPayload(request) {
+async function readPayload(request, maxBytes = 131072) {
   if (!/^application\/json(?:\s*;|$)/i.test(request.headers.get("content-type") || "")) return null;
   const reader = request.body?.getReader();
   if (!reader) return null;
@@ -91,7 +106,7 @@ async function readPayload(request) {
     const { value, done } = await reader.read();
     if (done) break;
     size += value.byteLength;
-    if (size > 131072) {
+    if (size > maxBytes) {
       await reader.cancel();
       return null;
     }
@@ -100,7 +115,7 @@ async function readPayload(request) {
   try { return JSON.parse(body + decoder.decode()); } catch { return null; }
 }
 
-async function verifyTurnstile(token, env, hostname) {
+async function verifyTurnstile(token, env, expectedHostname) {
   if (!env.TURNSTILE_SECRET_KEY || !env.TURNSTILE_SITE_KEY || !env.TURNSTILE_ACTION) {
     return error(503, "Turnstile doit être configuré pour enregistrer.");
   }
@@ -112,7 +127,7 @@ async function verifyTurnstile(token, env, hostname) {
     body: new URLSearchParams({ secret: env.TURNSTILE_SECRET_KEY, response: token })
   }).then(response => response.ok ? response.json() : null).catch(() => null);
   if (!result) return error(503, "Vérification Turnstile temporairement indisponible.");
-  if (!result.success || result.hostname !== (env.TURNSTILE_HOSTNAME || hostname) || result.action !== env.TURNSTILE_ACTION) {
+  if (!result.success || result.hostname !== expectedHostname || result.action !== env.TURNSTILE_ACTION) {
     return error(403, "Vérification Turnstile refusée. Réessayez.");
   }
   return null;
@@ -230,9 +245,87 @@ async function githubAuth(request, env, url) {
   }
 }
 
+const contactBodyLimit = 32 * 1024;
+const emailPattern = /^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/i;
+
+function contactField(payload, name) {
+  return typeof payload?.[name] === "string" ? payload[name].trim() : "";
+}
+
+async function contact(request, env, url) {
+  const origin = request.headers.get("Origin");
+  const allowed = origin && (origin === url.origin || origin === env.ALLOWED_ORIGIN);
+  const method = request.method;
+  let response;
+
+  if ((origin || method !== "GET") && !allowed) {
+    response = error(403, "Origine refusée.");
+  } else if (method === "OPTIONS") {
+    response = request.headers.get("Access-Control-Request-Method") === "POST"
+      ? new Response(null, { status: 204, headers: {
+          "Access-Control-Allow-Methods": "GET, POST",
+          "Access-Control-Allow-Headers": "Content-Type"
+        } })
+      : error(405, "Méthode non autorisée.");
+  } else if (method === "GET") {
+    response = env.TURNSTILE_SITE_KEY && env.TURNSTILE_SECRET_KEY && env.TURNSTILE_ACTION
+      ? json({ siteKey: env.TURNSTILE_SITE_KEY, action: env.TURNSTILE_ACTION })
+      : error(503, "Le formulaire de contact est en cours de configuration.");
+  } else if (method === "POST") {
+    response = await saveContact(request, env, new URL(origin).hostname);
+  } else {
+    response = error(405, "Méthode non autorisée.");
+  }
+
+  response.headers.append("Vary", "Origin");
+  if (method === "OPTIONS") response.headers.append("Vary", "Access-Control-Request-Method");
+  if (allowed) response.headers.set("Access-Control-Allow-Origin", origin);
+  if (response.status === 405) response.headers.set("Allow", "GET, POST, OPTIONS");
+  return response;
+}
+
+async function saveContact(request, env, hostname) {
+  const payload = await readPayload(request, contactBodyLimit).catch(() => null);
+  const email = contactField(payload, "email");
+  const sujet = contactField(payload, "sujet");
+  const message = contactField(payload, "message");
+  if (!plain(payload) || email.length > 254 || !emailPattern.test(email)
+      || !sujet || sujet.length > 150 || !message || message.length > 4000) {
+    return error(400, "Vérifiez l’adresse électronique, le sujet (1 à 150 caractères) et le message (1 à 4 000 caractères). Le corps JSON est limité à 32 Kio.");
+  }
+
+  if (!env.DATA) return error(503, "Le stockage du formulaire est indisponible.");
+  const verification = await verifyTurnstile(payload.turnstileToken, env, hostname);
+  if (verification) return verification;
+
+  const id = crypto.randomUUID();
+  const date = new Date().toISOString();
+  const key = "contacts/" + date.slice(0, 10) + "/" + id + ".json";
+  try {
+    const saved = await env.DATA.put(key, JSON.stringify({ id, date, email, sujet, message }), {
+      ...createOnly,
+      httpMetadata: { contentType: "application/json; charset=utf-8" }
+    });
+    return saved ? json({ id }, 201) : error(409, "Envoi en conflit. Réessayez.");
+  } catch {
+    return error(503, "Le stockage du formulaire est indisponible. Réessayez plus tard.");
+  }
+}
+
+const homeUrl = "https://seayousooon.github.io/Labo/";
+function htmlResponse(html) {
+  return new Response(html.replaceAll('href="./index.html"', 'href="' + homeUrl + '"'), {
+    headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" }
+  });
+}
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
+    if (url.pathname === "/contact") return contact(request, env, url);
+    if (request.method === "GET" && supportingPages.has(url.pathname)) {
+      return htmlResponse(supportingPages.get(url.pathname));
+    }
     if (url.pathname.startsWith("/auth/github/")) return githubAuth(request, env, url);
     if (request.method === "GET" && ["/", "/outils.html"].includes(url.pathname)) {
       const signedIn = await hasGitHubSession(request, env);
@@ -244,9 +337,8 @@ export default {
         ? '<form method="post" action="/auth/github/logout"><button type="submit">Se déconnecter</button></form>'
         : '<p><a href="/auth/github/login">Se connecter avec GitHub pour modifier les outils</a></p>';
       const html = page.replace('<html lang="fr">', '<html lang="fr" data-worker="oui">')
-        .replaceAll('href="./index.html"', 'href="https://seayousooon.github.io/Labo/"')
         .replace('<p id="edition-status"', match => (url.origin === productionOrigin ? message + controls : "") + match);
-      return new Response(html, { headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" } });
+      return htmlResponse(html);
     }
     if (!url.pathname.startsWith("/api/")) return error(404, "Adresse inconnue.");
     const signedIn = await hasGitHubSession(request, env);
@@ -311,7 +403,7 @@ export default {
         if (!texte || texte.length > 2000 || typeof id !== "string" || !/^[0-9a-f-]{36}$/.test(id)) {
           return error(400, "Commentaire invalide (1 à 2 000 caractères).");
         }
-        const verification = await verifyTurnstile(payload.turnstileToken, env, url.hostname);
+        const verification = await verifyTurnstile(payload.turnstileToken, env, env.TURNSTILE_HOSTNAME || url.hostname);
         if (verification) return verification;
         const commentKey = "commentaires/" + outilId + "/" + id + ".json";
         const comment = { id, outilId, texte, date: new Date().toISOString() };
@@ -328,7 +420,7 @@ export default {
         if (!validTool(payload?.fiche, categories) || typeof payload?.version !== "string" || !/^[a-f0-9]{32}$/.test(payload.version)) {
           return error(400, "Vérifiez les champs, l’URL HTTP/HTTPS et les types des valeurs.");
         }
-        const verification = await verifyTurnstile(payload.turnstileToken, env, url.hostname);
+        const verification = await verifyTurnstile(payload.turnstileToken, env, env.TURNSTILE_HOSTNAME || url.hostname);
         if (verification) return verification;
         const { numero, nom, url: ficheUrl, description, categorie, acces, date, source, personnalises } = payload.fiche;
         const fiche = { outilId, numero, nom, url: ficheUrl, description, categorie, acces, date, source, personnalises };

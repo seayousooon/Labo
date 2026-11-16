@@ -24,6 +24,8 @@ a:focus-visible{outline:3px solid #ad3c26;outline-offset:4px}
 .skip{position:absolute;left:16px;top:-100px;background:white;padding:12px;z-index:10}.skip:focus{top:12px}
 section+section{margin-top:40px}footer{border-top:1px solid #9dcfc3;font-size:14px}
 @media(max-width:650px){.grid,.tools{grid-template-columns:1fr}header,main,footer{padding:20px}main{padding-top:32px}}
+footer nav ul{display:flex;flex-wrap:wrap;gap:4px 20px;list-style:none;margin:0;padding:0}
+footer nav a{display:inline-flex;align-items:center;min-height:44px}
 </style>
 </head>
 <body>
@@ -37,6 +39,18 @@ section+section{margin-top:40px}footer{border-top:1px solid #9dcfc3;font-size:14
 <a class="button" href="https://labo-outils.allonsalaplage.workers.dev/outils.html">Consulter les outils</a>
 </section>
 </main>
-<footer>Labo — Projet de formation</footer>
+<footer>
+<nav aria-label="Pied de page">
+<ul>
+<li><a href="./contact.html">Contact</a></li>
+<li><a href="./aide.html">Aide</a></li>
+<li><a href="./info-site.html">Info site</a></li>
+<li><a href="./accessibilite.html">Accessibilité : non conforme</a></li>
+<li><a href="./index.html">Site de Labo</a></li>
+<li><a href="./donnees-personnelles.html">Cookies / Données personnelles</a></li>
+<li><a href="./mentions-legales.html">Mentions légales</a></li>
+</ul>
+</nav>
+</footer>
 </body>
 </html>
