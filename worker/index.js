@@ -294,7 +294,7 @@ async function saveContact(request, env, hostname) {
     return error(400, "Vérifiez l’adresse électronique, le sujet (1 à 150 caractères) et le message (1 à 4 000 caractères). Le corps JSON est limité à 32 Kio.");
   }
 
-  if (!env.DATA) return error(503, "Le stockage du formulaire est indisponible.");
+  if (!env.OUTILS) return error(503, "Le stockage du formulaire est indisponible.");
   const verification = await verifyTurnstile(payload.turnstileToken, env, hostname);
   if (verification) return verification;
 
@@ -302,7 +302,7 @@ async function saveContact(request, env, hostname) {
   const date = new Date().toISOString();
   const key = "contacts/" + date.slice(0, 10) + "/" + id + ".json";
   try {
-    const saved = await env.DATA.put(key, JSON.stringify({ id, date, email, sujet, message }), {
+    const saved = await env.OUTILS.put(key, JSON.stringify({ id, date, email, sujet, message }), {
       ...createOnly,
       httpMetadata: { contentType: "application/json; charset=utf-8" }
     });
@@ -343,7 +343,7 @@ export default {
     if (!url.pathname.startsWith("/api/")) return error(404, "Adresse inconnue.");
     const signedIn = await hasGitHubSession(request, env);
     const canEdit = signedIn || Boolean(env.ACCESS_AUD && ctx.access?.aud === env.ACCESS_AUD);
-    const bucket = env.DATA;
+    const bucket = env.OUTILS;
     try {
       const { seed, ids, categories } = await readCatalogue();
       if (request.method === "GET" && url.pathname === "/api/outils") {
