@@ -7,9 +7,9 @@
   "keep_vars": true,
   "r2_buckets": [
     {
-      "binding": "DATA",
+      "binding": "OUTILS",
       "bucket_name": "labo-outils",
-"jurisdiction": "eu"
+      "jurisdiction": "eu"
     }
   ],
   "d1_databases": [
