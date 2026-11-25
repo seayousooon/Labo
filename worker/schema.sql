@@ -5,12 +5,15 @@ CREATE TABLE IF NOT EXISTS fiches (
     description TEXT,
     categorie TEXT,
     auteur_email TEXT,
-    version INTEGER NOT NULL DEFAULT 1
+    version INTEGER NOT NULL DEFAULT 1,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS commentaires (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     fiche_id TEXT NOT NULL,
+    texte TEXT NOT NULL,
+    auteur_email TEXT NOT NULL,
     FOREIGN KEY (fiche_id) REFERENCES fiches(id)
 );
 

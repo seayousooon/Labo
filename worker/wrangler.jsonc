@@ -1,6 +1,6 @@
 {
   "name": "labo-outils",
-  "main": "index.js",
+  "main": "src/index.js",
   "compatibility_date": "2026-11-15",
   "workers_dev": true,
   "preview_urls": false,
