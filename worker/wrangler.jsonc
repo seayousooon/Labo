@@ -8,7 +8,8 @@
   "r2_buckets": [
     {
       "binding": "DATA",
-      "bucket_name": "labo-outils"
+      "bucket_name": "labo-outils",
+"jurisdiction": "eu"
     }
   ],
   "d1_databases": [
