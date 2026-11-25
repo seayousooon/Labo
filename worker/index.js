@@ -1,3 +1,4 @@
+import { verificationRoute } from "./verification.js";
 import page from "../outils.html";
 import infoPage0 from "../contact.html";
 import infoPage1 from "../aide.html";
@@ -322,6 +323,8 @@ function htmlResponse(html) {
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
+    const verification = await verificationRoute(request, env);
+    if (verification) return verification;
     if (url.pathname === "/contact") return contact(request, env, url);
     if (request.method === "GET" && supportingPages.has(url.pathname)) {
       return htmlResponse(supportingPages.get(url.pathname));

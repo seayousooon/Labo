@@ -4,8 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "check": "wrangler deploy --dry-run",
-    "deploy": "wrangler deploy"
+    "check": "npm test && wrangler deploy --dry-run",
+    "deploy": "wrangler deploy",
+    "test": "node --test verification.test.js"
   },
   "devDependencies": {
     "wrangler": "4.162.0"
