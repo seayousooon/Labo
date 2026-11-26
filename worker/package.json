@@ -6,9 +6,12 @@
   "scripts": {
     "check": "npm test && wrangler deploy --dry-run",
     "deploy": "wrangler deploy",
-    "test": "node --test verification.test.js"
+    "test": "node --test *.test.js"
   },
   "devDependencies": {
     "wrangler": "4.162.0"
+  },
+  "dependencies": {
+    "jose": "6.2.18"
   }
 }

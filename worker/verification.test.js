@@ -43,12 +43,7 @@ test("écritures refusées avant tout accès au stockage", async () => {
     assert.equal(r.status, 405); assert.equal(r.headers.get("Allow"), "GET");
   }
 });
-test("page en lecture seule et routes existantes non interceptées", async () => {
-  const r = await verificationRoute(req("/edition/outils.html"), {});
-  assert.equal(r.status, 200);
-  const html = await r.text();
-  assert.match(html, /Modification désactivée/);
-  assert.match(html, /button disabled/);
-  assert.match(html, /li.textContent/);
+test("console et routes existantes déléguées au Worker", async () => {
+  assert.equal(await verificationRoute(req("/edition/outils.html"), {}), null);
   assert.equal(await verificationRoute(req("/api/initialiser", "POST"), {}), null);
 });

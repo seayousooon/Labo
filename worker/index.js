@@ -1,3 +1,4 @@
+import { accessIdentity } from "./access.js";
 import { verificationRoute } from "./verification.js";
 import page from "../outils.html";
 import infoPage0 from "../contact.html";
@@ -323,29 +324,34 @@ function htmlResponse(html) {
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
-    const verification = await verificationRoute(request, env);
+    const identity = await accessIdentity(request, env);
+    const verification = await verificationRoute(request, env, identity);
     if (verification) return verification;
     if (url.pathname === "/contact") return contact(request, env, url);
     if (request.method === "GET" && supportingPages.has(url.pathname)) {
       return htmlResponse(supportingPages.get(url.pathname));
     }
     if (url.pathname.startsWith("/auth/github/")) return githubAuth(request, env, url);
-    if (request.method === "GET" && ["/", "/outils.html"].includes(url.pathname)) {
+    if (request.method === "GET" && ["/", "/outils.html", "/edition/outils.html"].includes(url.pathname)) {
       const signedIn = await hasGitHubSession(request, env);
       const outcome = url.searchParams.get("connexion");
       const explanation = outcome === "refusee" ? "Ce compte GitHub ne peut pas modifier les fiches."
         : githubFailureMessages.get(outcome);
       const message = explanation ? "<p>" + explanation + "</p>" : "";
-      const controls = signedIn
+      const controls = identity
+        ? '<p id="access-identity"></p>'
+        : signedIn
         ? '<form method="post" action="/auth/github/logout"><button type="submit">Se déconnecter</button></form>'
         : '<p><a href="/auth/github/login">Se connecter avec GitHub pour modifier les outils</a></p>';
       const html = page.replace('<html lang="fr">', '<html lang="fr" data-worker="oui">')
+        .replace('<html lang="fr" data-worker="oui">', identity ? '<html lang="fr" data-worker="oui" data-access="oui">' : '<html lang="fr" data-worker="oui">')
+        .replace('<head>', '<head><base href="/">')
         .replace('<p id="edition-status"', match => (url.origin === productionOrigin ? message + controls : "") + match);
       return htmlResponse(html);
     }
     if (!url.pathname.startsWith("/api/")) return error(404, "Adresse inconnue.");
     const signedIn = await hasGitHubSession(request, env);
-    const canEdit = signedIn || Boolean(env.ACCESS_AUD && ctx.access?.aud === env.ACCESS_AUD);
+    const canEdit = Boolean(identity) || (!env.ACCESS_AUD && signedIn);
     const bucket = env.OUTILS;
     try {
       const { seed, ids, categories } = await readCatalogue();
@@ -359,11 +365,11 @@ export default {
         }));
         return json({ outils, canEdit: canEdit && Boolean(bucket), next: offset + group.length < seed.length ? offset + group.length : null });
       }
-      if (!canEdit) return error(403, "Connectez-vous avec un compte GitHub autorisé.");
+      if (!canEdit) return error(403, "Connectez-vous avec une identité autorisée.");
       if (!bucket) return error(503, "Le stockage R2 n’est pas configuré.");
       if (request.method !== "GET") {
         const origin = request.headers.get("origin");
-        if (!origin || (origin !== url.origin && (signedIn || origin !== env.ALLOWED_ORIGIN))) {
+        if (!origin || (origin !== url.origin && (identity || signedIn || origin !== env.ALLOWED_ORIGIN))) {
           return error(403, "Origine refusée.");
         }
       }
@@ -426,7 +432,10 @@ export default {
         const verification = await verifyTurnstile(payload.turnstileToken, env, env.TURNSTILE_HOSTNAME || url.hostname);
         if (verification) return verification;
         const { numero, nom, url: ficheUrl, description, categorie, acces, date, source, personnalises } = payload.fiche;
-        const fiche = { outilId, numero, nom, url: ficheUrl, description, categorie, acces, date, source, personnalises };
+        const previous = await bucket.get(key);
+        const prior = previous ? await previous.json() : null;
+        const revision = (Number.isSafeInteger(prior?.revision) && prior.revision > 0 ? prior.revision : 1) + 1;
+        const fiche = { outilId, numero, nom, url: ficheUrl, description, categorie, acces, date, source, personnalises, revision };
         const onlyIf = new Headers({ "If-Match": '"' + payload.version + '"' });
         const saved = await bucket.put(key, JSON.stringify(fiche), { onlyIf }).catch(cause => {
           const code = /\((\d{5})\)/.exec(String(cause?.message ?? ""))?.[1];
