@@ -22,6 +22,8 @@
   "vars": {
     "ALLOWED_ORIGIN": "https://labo.allonsalaplage.workers.dev",
     "TURNSTILE_HOSTNAME": "",
-    "TURNSTILE_ACTION": "soumission"
+    "TURNSTILE_ACTION": "soumission",
+    "ACCESS_TEAM_DOMAIN": "https://icy-frost-20ce.cloudflareaccess.com",
+    "ACCESS_AUD": "339311d2b37f2c0052b59ad59d933a43ad98351f28b44b499ad4976c1aba0db4"
   }
 }

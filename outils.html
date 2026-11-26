@@ -11,7 +11,7 @@ footer nav a{display:inline-flex;align-items:center;min-height:44px}
 <p id="count" role="status" aria-live="polite" aria-atomic="true">71 ressources affichées</p><noscript><p>Le filtre nécessite JavaScript. Toutes les ressources restent visibles.</p></noscript>
 <p id="empty" hidden>Aucune ressource dans cette catégorie. Choisissez « Toutes les catégories ».</p>
 <p id="nouvel-onglet">Les liens du tableau s’ouvrent dans un nouvel onglet.</p>
-<p id="edition-status" role="status">Édition disponible sur le Worker après connexion.</p><p id="table-help">Sur petit écran, faites défiler le tableau horizontalement. Au clavier, placez le focus sur le tableau et utilisez les flèches.</p>
+<p id="edition-status" role="status">Lecture seule sur cette page publique.</p><p><a href="https://labo-outils.allonsalaplage.workers.dev/edition/outils.html">Ouvrir la console d’édition protégée</a></p><p id="table-help">Sur petit écran, faites défiler le tableau horizontalement. Au clavier, placez le focus sur le tableau et utilisez les flèches.</p>
 <div class="table-wrap" tabindex="0" role="region" aria-label="Tableau des ressources" aria-describedby="table-help"><table><caption>Catalogue complet des outils</caption><thead><tr><th scope="col">n°</th><th scope="col">Nom</th><th scope="col">URL</th><th scope="col">Description en français</th><th scope="col">Catégorie</th><th scope="col">Access / scope</th><th scope="col">Date de vérification du document</th><th scope="col">Source</th><th scope="col">Actions</th></tr></thead><tbody>
 <tr data-outil-id="outil-nqe515d5mnneptenquibru8bbtj2e00h" data-category="prompts"><td>1</td><th scope="row">Scrolltide</th><td><a href="https://scrolltide.co" target="_blank" rel="noopener noreferrer" aria-describedby="nouvel-onglet">https://scrolltide.co</a></td><td>Prompts et code pour sites 3D et animations au défilement.</td><td>prompts</td><td>Non précisé dans les captures</td><td>Non indiquée</td><td>Captures du cours</td><td><button type="button" data-action="fiche" disabled>Modifier la fiche</button> <button type="button" data-action="commentaire" disabled>Ajouter un commentaire</button></td></tr>
 <tr data-outil-id="outil-l2gdxcg1nfk9wduhs4dmt6bqfm2ickfl" data-category="inspiration"><td>2</td><th scope="row">Minimal Gallery</th><td><a href="https://minimal.gallery" target="_blank" rel="noopener noreferrer" aria-describedby="nouvel-onglet">https://minimal.gallery</a></td><td>Sélection de sites pour trouver des références visuelles.</td><td>inspiration</td><td>Non précisé dans les captures</td><td>Non indiquée</td><td>Captures du cours</td><td><button type="button" data-action="fiche" disabled>Modifier la fiche</button> <button type="button" data-action="commentaire" disabled>Ajouter un commentaire</button></td></tr>
@@ -141,6 +141,7 @@ if (document.documentElement.dataset.worker === 'oui') {
   const cancel = document.getElementById('cancel');
   let active;
   let saving = false;
+  let connectedEmail = "";
   let widgetId;
   let turnstileReady;
 
@@ -343,7 +344,7 @@ if (document.documentElement.dataset.worker === 'oui') {
         editor.close();
         applyFilter();
         if (row.hidden) filter.focus();
-        status.textContent = 'Fiche enregistrée pour ' + updated.fiche.nom + '.';
+        status.textContent = 'Fiche enregistrée (version ' + (updated.fiche.revision || 1) + ').';
       }
     } catch (error) {
       problem.textContent = error.name === 'TimeoutError'
@@ -363,6 +364,12 @@ if (document.documentElement.dataset.worker === 'oui') {
   });
 
   async function start() {
+    if (document.documentElement.dataset.access === 'oui') {
+      const state = await api('etat');
+      if (!state.ecriture || !state.email) throw new Error('Modification désactivée.');
+      connectedEmail = state.email;
+      document.getElementById('access-identity').textContent = 'Connecté : ' + connectedEmail + '. Vous pouvez modifier les fiches et commenter.';
+    }
     let { results, canEdit } = await loadFiches();
     for (const row of rows) {
       const entry = results.get(row.dataset.outilId);
@@ -370,7 +377,7 @@ if (document.documentElement.dataset.worker === 'oui') {
     }
     applyFilter();
     if (!canEdit) {
-      status.textContent = 'Lecture seule. Une connexion autorisée et le stockage R2 sont requis pour modifier.';
+      status.textContent = 'Modification désactivée. Une connexion autorisée et le stockage R2 sont requis pour modifier.';
       return;
     }
     if ([...results.values()].some(entry => entry.version === null)) {
@@ -387,7 +394,7 @@ if (document.documentElement.dataset.worker === 'oui') {
       }
     }
     applyFilter();
-    status.textContent = 'Édition disponible.';
+    status.textContent = connectedEmail ? 'Connecté : ' + connectedEmail + '. Vous pouvez modifier les fiches et commenter.' : 'Édition disponible.';
   }
   start().catch(error => { status.textContent = 'Édition indisponible. ' + error.message; });
 }

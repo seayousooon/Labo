@@ -2,62 +2,19 @@ const reply = (body, status = 200) => Response.json(body, {
   status, headers: { "Cache-Control": "no-store" }
 });
 
-// Page de vérification en lecture seule ; aucune autorisation Access n'est déduite
-// d'un en-tête fourni par le navigateur.
-const edition = `<!doctype html>
-<html lang="fr"><meta charset="utf-8"><meta name="viewport" content="width=device-width">
-<title>Consultation des fiches</title>
-<h1>Outils pédagogiques</h1><p>Modification désactivée</p>
-<button disabled>Ajouter une fiche</button><button disabled>Enregistrer</button>
-<p id="statut" role="status">Chargement des fiches…</p><ul id="fiches"></ul>
-<button id="suite" hidden>Afficher la suite</button>
-<script>
-let cursor = "";
-const suite = document.getElementById("suite");
-async function charger() {
-  suite.disabled = true;
-  try {
-    const response = await fetch("/api/fiches" + (cursor ? "?cursor=" + encodeURIComponent(cursor) : ""));
-    if (!response.ok) throw new Error("Lecture du stockage indisponible.");
-    const data = await response.json();
-    for (const fiche of Object.values(data.fiches)) {
-      const li = document.createElement("li");
-      li.textContent = [fiche.nom, fiche.description].filter(Boolean).join(" — ");
-      const modifier = document.createElement("button");
-      modifier.textContent = "Modifier";
-      modifier.disabled = true;
-      li.append(" ", modifier);
-      document.getElementById("fiches").append(li);
-    }
-    cursor = data.next || "";
-    suite.hidden = !cursor;
-    document.getElementById("statut").textContent = "Lecture réussie. Modification désactivée.";
-  } catch {
-    document.getElementById("statut").textContent = "Impossible de lire les fiches. Réessayez.";
-    suite.hidden = false;
-  } finally { suite.disabled = false; }
-}
-suite.addEventListener("click", charger);
-charger();
-</script></html>`;
-
-export async function verificationRoute(request, env) {
+export async function verificationRoute(request, env, identity = null) {
   const url = new URL(request.url);
   if (!["/api/etat", "/api/fiches", "/edition/outils.html"].includes(url.pathname)) return null;
+  if (url.pathname === "/edition/outils.html") return request.method === "GET" ? null : new Response(null, { status: 405, headers: { Allow: "GET" } });
   if (request.method !== "GET") {
     const response = reply({ message: "Méthode non autorisée." }, 405);
     response.headers.set("Allow", "GET");
     return response;
   }
   if (url.pathname === "/api/etat") {
-    // L'édition de cette nouvelle interface reste fermée jusqu'à l'intégration
-    // d'une validation Access côté serveur. Les routes existantes restent protégées.
-    return reply({ ecriture: false, edition: "/edition/outils.html" });
+    // identity provient uniquement de la validation cryptographique côté serveur.
+    return reply({ ecriture: Boolean(identity && env.OUTILS), edition: "/edition/outils.html", ...(identity ? { email: identity.email } : {}) });
   }
-  if (url.pathname === "/edition/outils.html") return new Response(edition, {
-    headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store",
-      "X-Content-Type-Options": "nosniff", "Referrer-Policy": "no-referrer" }
-  });
   const cursor = url.searchParams.get("cursor") || undefined;
   if (cursor && cursor.length > 2048) return reply({ message: "Curseur invalide." }, 400);
   if (!env.OUTILS) return reply({ message: "Le stockage R2 n’est pas configuré." }, 503);
