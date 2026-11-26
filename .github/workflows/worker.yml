@@ -4,11 +4,13 @@ on:
   push:
     paths:
       - 'outils.html'
+      - 'public-catalogue.js'
       - 'worker/**'
       - '.github/workflows/worker.yml'
   pull_request:
     paths:
       - 'outils.html'
+      - 'public-catalogue.js'
       - 'worker/**'
       - '.github/workflows/worker.yml'
   workflow_dispatch:

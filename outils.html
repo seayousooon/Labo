@@ -397,5 +397,9 @@ if (document.documentElement.dataset.worker === 'oui') {
     status.textContent = connectedEmail ? 'Connecté : ' + connectedEmail + '. Vous pouvez modifier les fiches et commenter.' : 'Édition disponible.';
   }
   start().catch(error => { status.textContent = 'Édition indisponible. ' + error.message; });
+} else {
+  import('./public-catalogue.js').then(module => module.refreshPublicCatalogue(document, applyFilter)).catch(() => {
+    document.getElementById('edition-status').textContent = 'Lecture seule — actualisation indisponible. Le catalogue fourni avec le site reste affiché ; il peut être ancien.';
+  });
 }
 </script></body></html>

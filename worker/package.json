@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "check": "npm test && wrangler deploy --dry-run",
+    "check": "npm test && wrangler deploy --dry-run && wrangler deploy --dry-run --config wrangler.public.jsonc",
     "deploy": "wrangler deploy",
     "test": "node --test *.test.js"
   },
