@@ -1,0 +1,8 @@
+{
+  "name": "labo-catalogue-public",
+  "main": "public-index.js",
+  "compatibility_date": "2026-11-15",
+  "workers_dev": true,
+  "preview_urls": false,
+  "r2_buckets": [{ "binding": "OUTILS", "bucket_name": "labo-outils", "jurisdiction": "eu" }]
+}
